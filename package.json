@@ -1,0 +1,51 @@
+{
+  "name": "tdarr-flow-test",
+  "version": "0.1.0",
+  "description": "A typed test harness for Tdarr flows: graph linting, plugin unit testing, and flow simulation.",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts",
+    "./probe": "./src/probe.ts",
+    "./types": "./src/types/index.ts",
+    "./cli": "./src/cli.ts"
+  },
+  "types": "./src/index.ts",
+  "files": [
+    "src",
+    "vendor",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src test",
+    "lint:fix": "oxlint --fix src test",
+    "format": "oxfmt --write src test",
+    "format:check": "oxfmt --check src test",
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "prepare": "husky",
+    "plugins:update": "node scripts/update-plugins.ts"
+  },
+  "keywords": [
+    "tdarr",
+    "flow",
+    "testing",
+    "ffmpeg"
+  ],
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.3.0",
+    "oxlint": "^1.62.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  },
+  "bin": {
+    "tdarr-test": "./src/cli.ts"
+  }
+}
