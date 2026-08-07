@@ -13,6 +13,11 @@ export interface WorkingFile {
    * and cope with the latter.
    */
   probeFailed: boolean;
+  /**
+   * Tdarr's own classification: 'video', 'audio' or 'other'. `checkFileMedium`
+   * throws outright if it is missing, and an unreadable file is 'other'.
+   */
+  medium: string;
 }
 
 export interface LogEntry {
@@ -61,7 +66,17 @@ export function toWorkingFile(file: TdarrFile): WorkingFile {
     size: file.file_size,
     streams: renumber(streams ?? []),
     probeFailed: !Array.isArray(streams),
+    medium: typeof file.fileMedium === 'string' ? file.fileMedium : mediumOf(streams ?? []),
   };
+}
+
+/** Mirrors how Tdarr classifies a file from its streams. */
+export function mediumOf(streams: FfProbeStream[]): string {
+  if (streams.some((s) => s.codec_type === 'video' && s.disposition?.attached_pic !== 1)) {
+    return 'video';
+  }
+  if (streams.some((s) => s.codec_type === 'audio')) return 'audio';
+  return 'other';
 }
 
 export function toCommandStreams(streams: FfProbeStream[]): FfmpegCommandStream[] {

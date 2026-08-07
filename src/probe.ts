@@ -144,7 +144,7 @@ export function file(options: FileOptions = {}): TdarrFile {
     container,
     file_size: size,
     ffProbeData: { streams: renumbered },
-    fileMedium: firstVideo ? 'video' : 'other',
+    fileMedium: firstVideo ? 'video' : (firstAudio ? 'audio' : 'other'),
     video_codec_name: firstVideo?.codec_name ?? '',
     audio_codec_name: firstAudio?.codec_name ?? '',
     videoStreamIndex: firstVideo?.index ?? -1,

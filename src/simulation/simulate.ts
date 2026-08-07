@@ -120,15 +120,12 @@ export function simulate(
         break;
       }
 
+      // No edge on this handle: the flow ends here, leaving the file alone.
+      // That is how Tdarr behaves, and it is a legitimate "nothing to do"
+      // branch. `lint`'s unwired-handle rule is where an *accidental* one gets
+      // caught.
       const next = targets[0];
-      if (next === undefined) {
-        ctx.halted = {
-          kind: 'deadEnd',
-          node: node.id,
-          message: `${node.name} (${node.id}) left via handle ${handle}, which has no outgoing edge`,
-        };
-        break;
-      }
+      if (next === undefined) break;
       currentId = next;
     }
   } catch (error) {

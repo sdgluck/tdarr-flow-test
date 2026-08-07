@@ -143,6 +143,9 @@ ${c.bold('fuzz options')}
   --node-name <name>        Tdarr node name to simulate as (default Nvidia)
   --target-container <ext>  container every file should end in (default mkv)
   --target-video <codec>    codec every file should end in (default hevc)
+  --video-only              the flow handles video only, so skipping an
+                            audio-only file is correct (a skipped file that
+                            has video is still reported)
 
 ${c.dim('Exits 1 if any error-severity finding is reported.')}`);
 }
@@ -249,6 +252,7 @@ function cmdFuzz(): number {
     nodeName: option('node-name') ?? 'Nvidia',
     targetContainer: option('target-container') ?? 'mkv',
     targetVideoCodec: option('target-video') ?? 'hevc',
+    videoOnly: flag('video-only'),
   });
 
   const pct = (n: number) => `${((n / report.total) * 100).toFixed(0)}%`;

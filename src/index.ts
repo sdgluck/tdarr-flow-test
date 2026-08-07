@@ -41,6 +41,18 @@ export type {
 export { verifyHandles, formatVerifyResult } from './server/verifyHandles.ts';
 export type { VerifyHandlesResult, HandleMismatch } from './server/verifyHandles.ts';
 
+export {
+  fuzz,
+  generateVariants,
+  allVariants,
+  groupBy,
+  ANOMALY_EXPLANATION,
+} from './fuzz.ts';
+export type { Anomaly, FuzzOptions, FuzzOutcome, FuzzReport, Variant } from './fuzz.ts';
+
+export { vendorInfo, vendorPaths, describeVendor } from './vendor.ts';
+export type { VendorInfo, VendorPaths } from './vendor.ts';
+
 export * as probe from './probe.ts';
 
 export type * from './types/index.ts';

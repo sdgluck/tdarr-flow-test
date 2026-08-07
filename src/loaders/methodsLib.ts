@@ -12,9 +12,11 @@ type AnyDetails =
  * Classic plugins declare `Inputs` (capitalised), flow plugins declare
  * `inputs`; both are supported so the same stub serves either.
  *
- * Only `undefined` values are filled. A flow legitimately stores empty strings
- * in `inputsDB` - `codecs: ""` means "no codec ordering", not "unset" - and
- * overwriting those would diverge from the server.
+ * Empty strings are filled too, not just `undefined`. That is what the real
+ * `methods/lib` does, and it matters: setting a plugin input to "" does NOT
+ * mean "no value", it silently reverts to the plugin's default. Getting this
+ * wrong made an empty `language` look like "match any language" here while the
+ * server was reading it as "eng".
  */
 export function makeMethodsLib() {
   return {
@@ -26,7 +28,9 @@ export function makeMethodsLib() {
       const declared = 'Inputs' in resolved ? resolved.Inputs : resolved.inputs;
       const out: Record<string, unknown> = { ...inputs };
       for (const def of declared ?? []) {
-        if (out[def.name] === undefined) out[def.name] = def.defaultValue;
+        const current = out[def.name];
+        const trimmed = typeof current === 'string' ? current.trim() : current;
+        out[def.name] = trimmed === undefined || trimmed === '' ? def.defaultValue : trimmed;
       }
       return out as T;
     },

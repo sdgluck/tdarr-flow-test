@@ -396,6 +396,8 @@ const ffmpegCommand: Record<string, NodeModel> = {
         throw new HaltError('crash', 'No streams mapped for new file');
       }
 
+      assertNoUnqualifiedOptionConflicts(command.streams.filter((s) => !s.removed));
+
       if (!shouldProcess) {
         ctx.say('No need to process file, already as required');
         return '1';
@@ -424,6 +426,47 @@ const ffmpegCommand: Record<string, NodeModel> = {
     },
   },
 };
+
+/**
+ * Options ffmpeg applies to EVERY output stream unless they carry a stream
+ * specifier (`-ac:1 6` rather than `-ac 6`).
+ *
+ * This matters because a flow that encodes two audio streams in one command
+ * will emit the option twice, and ffmpeg silently keeps the last value for all
+ * of them. It reports success. The only visible sign is a warning buried in the
+ * ffmpeg output:
+ *
+ *   Multiple -ac options specified for stream 1, only the last option
+ *   '-ac 2' will be used.
+ *
+ * Observed for real: a flow asking for E-AC3 5.1 + E-AC3 2.0 produced two
+ * stereo tracks and destroyed the surround audio. Nothing in the graph or the
+ * per-stream markup looks wrong, so this check exists to catch it at plan time.
+ */
+const UNQUALIFIED_PER_STREAM_OPTS = new Set(['-ac', '-ar']);
+
+function assertNoUnqualifiedOptionConflicts(streams: FfmpegCommandStream[]): void {
+  const seen = new Map<string, { value: string; index: number }>();
+
+  for (const stream of streams) {
+    for (let i = 0; i < stream.outputArgs.length - 1; i += 2) {
+      const flag = String(stream.outputArgs[i]);
+      const value = String(stream.outputArgs[i + 1]);
+      if (!UNQUALIFIED_PER_STREAM_OPTS.has(flag)) continue;
+
+      const previous = seen.get(flag);
+      if (previous && previous.value !== value) {
+        throw new HaltError(
+          'crash',
+          `conflicting "${flag}" without a stream specifier: stream ${previous.index} asks for `
+            + `${previous.value}, stream ${stream.index} asks for ${value}. ffmpeg would apply `
+            + `"${flag} ${value}" to BOTH. Qualify it as "${flag}:{outputIndex}".`,
+        );
+      }
+      seen.set(flag, { value, index: stream.index });
+    }
+  }
+}
 
 // --- classic plugin bridge --------------------------------------------------
 

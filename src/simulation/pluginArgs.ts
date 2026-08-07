@@ -50,6 +50,7 @@ export function buildPluginArgs(
     file_size: ctx.file.size,
     // Preserve "never probed" vs "no streams" - plugins behave differently.
     ffProbeData: ctx.file.probeFailed ? {} : { streams: ctx.file.streams },
+    fileMedium: ctx.file.medium,
   };
 
   const variables: FlowVariables = {

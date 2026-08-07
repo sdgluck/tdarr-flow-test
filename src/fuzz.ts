@@ -151,9 +151,11 @@ export function generateVariants(options: GenerateOptions = {}): Variant[] {
 // --- running and classifying ------------------------------------------------
 
 export type Anomaly =
+  | 'skipped-with-media'
   | 'silent'
   | 'not-target-container'
   | 'multiple-audio'
+  | 'duplicate-audio'
   | 'not-replaced'
   | 'lost-subtitles'
   | 'video-not-target-codec';
@@ -172,6 +174,20 @@ export interface FuzzOptions extends SimulateOptions, GenerateOptions {
   /** Video codec every file is expected to end up in. Defaults to hevc. */
   targetVideoCodec?: string;
   /**
+   * How many audio tracks the flow is meant to produce. Defaults to 2, which
+   * suits a "one surround plus one stereo mate" policy; set 1 for a
+   * single-track policy.
+   */
+  maxAudioTracks?: number;
+  /** Channel count at which a track counts as surround. */
+  surroundMinChannels?: number;
+  /**
+   * Set when the flow deliberately only handles video, so a skipped audio-only
+   * file is correct rather than a defect. A skipped file that DOES have video
+   * is still reported - declaring scope must not become a blanket exemption.
+   */
+  videoOnly?: boolean;
+  /**
    * Language the flow is expected to keep. Subtitles and audio in other
    * languages are *supposed* to be stripped, so losing them is not an anomaly.
    */
@@ -181,7 +197,19 @@ export interface FuzzOptions extends SimulateOptions, GenerateOptions {
 function describeShape(result: SimulationResult, target: string): string {
   if (result.halted) return `HALTED (${result.halted.kind})`;
 
-  const video = result.video.map((s) => s.codec_name).join('+') || 'no-video';
+  const untouched = !result.replaced
+    && result.file.container === result.original.container
+    && JSON.stringify(result.file.streams) === JSON.stringify(result.original.streams);
+  if (untouched) return `SKIPPED (${result.file.container}, left untouched)`;
+
+  // Begin Command reclassifies attached pictures to codec_type 'attachment',
+  // so whether a cover image counts as "video" depends on whether the command
+  // block ran. Exclude them explicitly, or an untouched file looks different
+  // from an identical processed one for no real reason.
+  const video = result.video
+    .filter((s) => s.disposition?.attached_pic !== 1)
+    .map((s) => s.codec_name)
+    .join('+') || 'no-video';
   const audio = result.audio.map((s) => `${s.codec_name}/${s.channels ?? '?'}ch`).join('+')
     || 'NO AUDIO';
   const subs = result.subtitles.length;
@@ -216,8 +244,31 @@ function findAnomalies(
     (s) => s.codec_type === 'video' && s.disposition?.attached_pic !== 1,
   );
 
+  const changed = result.file.container !== result.original.container
+    || JSON.stringify(result.file.streams) !== JSON.stringify(result.original.streams);
+
+  // The flow ran, changed nothing, and committed nothing - it deliberately
+  // declined this file. That is correct for a file with no media in it (a
+  // subtitle-only file has nothing to transcode, and an unreadable one cannot
+  // be read), and a defect for anything else. Judging container or codec
+  // targets against a file the flow never touched only produces noise, so the
+  // distinction is drawn here rather than exempting skips wholesale.
+  if (!result.replaced && !changed) {
+    const inScope = options.videoOnly ? hadVideo : hadVideo || hadAudio;
+    if (inScope) anomalies.push('skipped-with-media');
+    return anomalies;
+  }
+
   if (hadAudio && result.audio.length === 0) anomalies.push('silent');
-  if (result.audio.length > 1) anomalies.push('multiple-audio');
+
+  if (result.audio.length > (options.maxAudioTracks ?? 2)) anomalies.push('multiple-audio');
+
+  // Two tracks of the same kind is a defect under any policy: it means a
+  // generated track landed beside the original it was meant to replace.
+  const surroundMin = options.surroundMinChannels ?? 4;
+  const surroundCount = result.audio.filter((s) => (s.channels ?? 0) >= surroundMin).length;
+  const otherCount = result.audio.length - surroundCount;
+  if (surroundCount > 1 || otherCount > 1) anomalies.push('duplicate-audio');
   if (result.file.container !== target) anomalies.push('not-target-container');
   if (hadSubs && result.subtitles.length === 0) anomalies.push('lost-subtitles');
   if (!result.replaced) anomalies.push('not-replaced');
@@ -279,8 +330,12 @@ export function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[
 export const ANOMALY_EXPLANATION: Record<Anomaly, string> = {
   silent: 'input had audio, output has none',
   'not-target-container': 'did not end up in the target container',
-  'multiple-audio': 'more than one audio stream survived',
-  'not-replaced': 'flow finished without committing the result',
+  'multiple-audio': 'more audio streams survived than the policy allows',
+  'duplicate-audio':
+    'two audio streams of the same kind survived (two surround, or two stereo/mono)',
+  'not-replaced': 'file was modified but the result was never committed',
+  'skipped-with-media':
+    'flow declined to touch a file that has video or audio streams',
   'lost-subtitles': 'input had subtitles, output has none',
   'video-not-target-codec': 'video was not transcoded to the target codec',
 };
