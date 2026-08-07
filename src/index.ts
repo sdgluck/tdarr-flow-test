@@ -17,6 +17,14 @@ export {
   registerLocalFlowPlugins,
 } from './simulation/localPlugins.ts';
 
+export {
+  MUST_MODEL,
+  discoverPlugins,
+  realPluginModel,
+  registerCommunityPlugins,
+} from './simulation/community.ts';
+export type { DiscoveredPlugin, RegisterCommunityOptions } from './simulation/community.ts';
+
 export type {
   HaltReason,
   LogEntry,

@@ -1,27 +1,18 @@
 # tdarr-flow-test
 
-A typed test harness for [Tdarr](https://github.com/HaveAGitGat/Tdarr) flows.
+> Lint, unit test, simulate and fuzz [Tdarr](https://github.com/HaveAGitGat/Tdarr) flows
 
-Tdarr flows are graphs wired up in a browser, and a mistake in one is usually
-invisible: an edge attached to an output handle the plugin does not have looks
-exactly like an edge that works, and you find out when a file lands in the
-library in the wrong shape. This library lets you assert on a flow the way you
-would assert on code.
+:mag: Lint a flow graph for impossible edges, unreachable nodes and unhandled failures.
 
-Three layers, in increasing cost and increasing truth:
+:test_tube: Run your classic and flow plugins from real source, no reimplementation.
 
-| layer | what it proves | needs |
-|---|---|---|
-| **lint** | the graph is wired coherently | the flow JSON |
-| **unit** | your own plugins do what you think | plugin source |
-| **simulate** | a given file takes a given path through the flow | both |
+:arrows_counterclockwise: Walk a synthetic file through a flow and assert where it lands.
 
-None of them run ffmpeg. For that, drive real files through a real server -
-the harness is for the flow defects that are decided before ffmpeg is invoked.
+:game_die: Fuzz thousands of file shapes and group the outcomes.
 
-Stock plugins are **executed from real vendored Tdarr source**, not modelled.
-Run `pnpm plugins:update` once (see below) and routing decisions come from the
-same code Tdarr runs.
+:point_right: Executes the real stock Tdarr plugins, vendored from source.
+
+:warning: Never runs ffmpeg. Use an end-to-end run for anything about ffmpeg's actual output.
 
 ## Install
 
@@ -29,232 +20,294 @@ same code Tdarr runs.
 pnpm add -D tdarr-flow-test
 ```
 
-Requires Node 22.18+. The package ships TypeScript source and is executed by
-Node's native type stripping, so there is no build step and no `dist/`.
+```sh
+npm install --save-dev tdarr-flow-test
+```
 
-## Lint a flow
+Requires Node 22.18+. Ships TypeScript source, executed by Node's native type
+stripping. No build step.
 
-```ts
-import { Flow, builtinRegistry, lint, formatFindings } from 'tdarr-flow-test';
+## Import
 
-const flow = Flow.fromFile('flows/transcode-pipeline.json');
-const findings = lint(flow, { registry: builtinRegistry() });
+```js
+import { Flow, lint, simulate, fuzz, probe } from 'tdarr-flow-test'
+```
 
-console.log(formatFindings(findings));
+## Vendor plugin source
+
+```sh
+pnpm plugins:update              # latest master
+pnpm plugins:update --ref <sha>  # pin to a commit
+```
+
+Pulls `FlowPlugins/CommunityFlowPlugins`, `FlowPlugins/FlowHelpers` and
+`methods/` from `HaveAGitGat/Tdarr_Plugins` into `vendor/`. Resolved commit is
+written to `vendor/VERSION.json`.
+
+Without it, stock nodes fall back to hand-written models.
+
+## CLI
+
+```sh
+tdarr-test lint <flow.json...>
+tdarr-test lint --server <url>
+tdarr-test fuzz <flow.json>
+tdarr-test flows --server <url>
+tdarr-test pull <name|id> --server <url> --out <file>
+tdarr-test plugins
+```
+
+- __--classic-plugins__ {String} Directory of `Tdarr_Plugin_*.js`
+- __--flow-plugins__ {String} `LocalFlowPlugins` directory
+- __--ignore__ {String} Comma-separated lint rules, e.g. `missing-error-edge:nodeId`
+- __--warnings-as-errors__ {Boolean} Exit 1 on warnings too
+- __--api-key__ {String} Tdarr API key
+- __--limit__ {Number} Fuzz variants to run _(default=`600`)_
+- __--full__ {Boolean} Run the entire fuzz matrix
+- __--video-only__ {Boolean} Skipping an audio-only file is correct
+- __--node-name__ {String} Node name to simulate as _(default=`"Nvidia"`)_
+- __--target-container__ {String} _(default=`"mkv"`)_
+- __--target-video__ {String} _(default=`"hevc"`)_
+
+Exits `1` on any error-severity finding, or any halted fuzz variant.
+
+## API
+
+### `Flow.fromFile(path) : Flow`
+
+### `Flow.fromObject(json) : Flow`
+
+Load a flow. Accepts the DB shape or a UI export.
+
+- __path__ {String} Path to the flow JSON
+- __json__ {Object} Flow document
+
+```js
+const flow = Flow.fromFile('flows/transcode-pipeline.json')
+
+flow.node('audNorm')            //=> FlowNode
+flow.targets('audNorm', '1')    //=> ['audReorder']
+flow.target('audNorm', '1')     //=> 'audReorder'  (throws on fan-out)
+flow.usedHandles('audNorm')     //=> ['1']
+flow.incoming('audNorm')        //=> FlowEdge[]
+flow.byPlugin('runMkvPropEdit') //=> FlowNode[]
+flow.entry()                    //=> FlowNode      (throws unless exactly one)
+flow.terminals()                //=> FlowNode[]
+flow.reachable()                //=> Set<string>
+```
+
+### `lint(flow, options) : LintFinding[]`
+
+- __flow__ {Flow}
+- __options.registry__ {NodeRegistry}
+- [__options.ignore__] {String[]} Rules to skip, optionally `rule:nodeId`
+- [__options.includeWarnings__] {Boolean} _(default=`true`)_
+
+```js
+lint(flow, { registry: buildRegistry(), ignore: ['missing-error-edge:audProped'] })
+//=> [{ rule, severity, nodeId, nodeName, message, assumed }]
 ```
 
 Rules: `entry-node`, `dangling-edge`, `unreachable-node`, `nonexistent-handle`,
 `unwired-handle`, `missing-error-edge`, `mixed-plugin-versions`,
 `overlapping-nodes`, `unmodelled-plugin`.
 
-Silence one with `ignore`, scoped to a node and with a reason:
+`assertNoLintErrors(flow, options)` throws instead of returning.
+`formatFindings(findings)` returns a printable string.
 
-```ts
-lint(flow, {
-  registry: builtinRegistry(),
-  // Deliberate: a tagging failure must not commit a possibly-bad transcode.
-  ignore: ['missing-error-edge:audProped'],
-});
+### `simulate(flow, file, options) : SimulationResult`
+
+- __flow__ {Flow}
+- __file__ {TdarrFile} Build one with `probe.file()`
+- [__options.nodeName__] {String} _(default=`"Tdarr_Node"`)_
+- [__options.classicPluginDir__] {String}
+- [__options.flowPluginDir__] {String}
+- [__options.vendorRoot__] {String}
+- [__options.registry__] {NodeRegistry}
+- [__options.useRealPlugins__] {Boolean} _(default=`true`)_
+- [__options.transcodeRatio__] {Number} Modelled encode output size _(default=`0.6`)_
+
+```js
+const result = simulate(flow, file, { classicPluginDir: 'plugins/Local' })
+
+result.file        //=> { path, container, size, streams, probeFailed, medium }
+result.audio       //=> FfProbeStream[]   (also .video, .subtitles)
+result.replaced    //=> true if it reached Replace Original File
+result.halted      //=> null, or { kind, node, message }
+result.visited     //=> ['Input File', 'Readable Video?', ...]
+result.didVisit(n) //=> Boolean
+result.path        //=> [{ id, name, plugin, handle }]
+result.messages    //=> String[]
 ```
 
-## Unit test your plugins
+`halted.kind` is one of `crash`, `fanout`, `loop`, `unmodelled`. An output
+handle with no edge ends the flow without halting.
 
-Classic plugins are pure functions from a file record to an ffmpeg preset,
-which makes them the easiest part of a Tdarr setup to test. The loader
-evaluates your real source with `methods/lib` and `FlowHelpers` stubbed, so you
-are testing the plugin rather than a reimplementation of it.
+### `fuzz(flow, options) : FuzzReport`
 
-```ts
-import { loadClassicPlugin, probe } from 'tdarr-flow-test';
+Sweeps a matrix of containers × video codecs × audio layouts × subtitle layouts.
 
-const { plugin } = loadClassicPlugin('Tdarr_Plugin_bsh1_RemuxMKV', {
+- __flow__ {Flow}
+- [__options.limit__] {Number} Sampled by even stride, never truncated
+- [__options.containers__] {String[]}
+- [__options.targetContainer__] {String} _(default=`"mkv"`)_
+- [__options.targetVideoCodec__] {String} _(default=`"hevc"`)_
+- [__options.keepLanguage__] {String} _(default=`"eng"`)_
+- [__options.maxAudioTracks__] {Number} _(default=`2`)_
+- [__options.surroundMinChannels__] {Number} _(default=`4`)_
+- [__options.videoOnly__] {Boolean} Skipping an audio-only file is correct
+- Plus every `simulate` option
+
+```js
+const report = fuzz(flow, { limit: 400, videoOnly: true })
+
+report.total     //=> 400
+report.generated //=> 8568
+report.clean     //=> FuzzOutcome[]
+report.anomalous //=> FuzzOutcome[]
+report.halted    //=> FuzzOutcome[]
+report.outcomes  //=> [{ variant, result, shape, anomalies }]
+```
+
+Anomalies: `silent`, `duplicate-audio`, `multiple-audio`, `not-target-container`,
+`lost-subtitles`, `not-replaced`, `video-not-target-codec`, `skipped-with-media`.
+
+`allVariants(options)` and `generateVariants(options)` return the matrix.
+`groupBy(items, keyFn)` groups outcomes, largest first.
+
+### `loadClassicPlugin(id, options) : ClassicPluginModule`
+
+- __id__ {String} e.g. `"Tdarr_Plugin_bsh1_RemuxMKV"`
+- __options.dir__ {String} Directory of `Tdarr_Plugin_*.js`
+- [__options.vendorRoot__] {String}
+
+```js
+const { plugin, details } = loadClassicPlugin('Tdarr_Plugin_bsh1_RemuxMKV', {
   dir: 'plugins/Local',
-});
+})
 
-const file = probe.file({
-  container: 'avi',
-  streams: [probe.video({ codec: 'mpeg4' }), probe.audio({ codec: 'mp3', channels: 1 })],
-});
-
-const result = plugin(file, {}, {}, {});
-const [inputArgs] = result.preset.split(',');
-expect(inputArgs).toContain('-fflags +genpts');
+const result = plugin(file, {}, { tag_language: 'eng' }, {})
+result.preset.split(',')[0] //=> input args
 ```
 
-`loadFlowPlugin` does the same for local flow plugins.
+### `loadFlowPlugin(name, options) : FlowPluginModule`
 
-## Simulate a file through a flow
+- __name__ {String}
+- __options.dir__ {String} Directory of `<category>/<name>/<version>/index.js`
+- __options.category__ {String}
+- [__options.version__] {String} _(default=`"1.0.0"`)_
+- [__options.vendorRoot__] {String}
 
-```ts
-import { Flow, probe, simulate } from 'tdarr-flow-test';
+### `probe`
 
-const flow = Flow.fromFile('flows/transcode-pipeline.json');
+Builders for synthetic ffprobe data.
 
-const result = simulate(
-  flow,
-  probe.file({
-    container: 'mkv',
-    streams: [
-      probe.video({ codec: 'h264' }),
-      probe.audio({ codec: 'dts', channels: 6 }),
-      probe.audio({ codec: 'aac', channels: 2 }),
-    ],
-  }),
-  {
-    nodeName: 'Nvidia',
-    classicPluginDir: 'plugins/Local',
-    flowPluginDir: 'plugins/FlowPlugins/LocalFlowPlugins',
-  },
-);
-
-expect(result.audio).toHaveLength(1);
-expect(result.audio[0].channels).toBe(6);   // did a stereo track win?
-expect(result.replaced).toBe(true);          // did it commit?
-expect(result.visited).toContain('Force Remux');
+```js
+probe.file({ container, streams, size, name, path })
+probe.unreadableFile({ container })  // ffProbeData is {}, streams ABSENT
+probe.video({ codec, width, height })
+probe.audio({ codec, channels, language, title, commentary, bitRate, sampleRate })
+probe.subtitle({ codec, language, title, commentary, hearingImpaired, forced })
+probe.attachedPic()
+probe.stream(codecType, extra)
 ```
 
-`SimulationResult` gives you `file`, `audio` / `video` / `subtitles`,
-`replaced`, `halted`, `visited`, `path` and `log`.
+Pass `language: null` for an untagged stream.
 
-`halted` is the interesting one. It is set when the flow died rather than
-finished, and distinguishes the ways that happens: `crash` (a node threw with
-no error handle to catch it), `deadEnd` (a node left by a handle with no
-outgoing edge), `fanout`, `loop`, `unmodelled`.
+### `buildRegistry(options) : NodeRegistry`
 
-### How much to trust it
+Built-in models, then real vendored community plugins, then your local flow
+plugins.
 
-The harness executes real plugin code wherever it can:
-
-- **your** classic and flow plugins - always, from your own source
-- **stock** flow plugins - from vendored Tdarr source, once `plugins:update`
-  has run. `tdarr-test plugins` shows which commit.
-
-What stays modelled is the handful of nodes that shell out to ffmpeg or
-mkvpropedit, or move files: `ffmpegCommandExecute`, `runMkvPropEdit`,
-`runClassicTranscodePlugin`, `inputFile`, `replaceOriginalFile`,
-`setOriginalFile`, `checkFileChanged` (see `MUST_MODEL`). Their *routing* is
-reproduced from the real source - `ffmpegCommandExecute`'s `shouldProcess`
-derivation, for instance, is copied from the plugin rather than guessed - but
-their side effects are simulated. Anything that depends on ffmpeg's actual
-output needs an end-to-end run.
-
-Each model carries a `confidence` of `observed` or `assumed`, and `lint` marks
-findings that rest on an `assumed` model with `assumed: true`. Treat those as
-hypotheses. Real plugins are always `observed`.
-
-Without vendored source everything falls back to hand-written models. That
-still works, but it is materially weaker - and it is how this library
-originally, wrongly, concluded that a flow edge was dead when the plugin
-version actually in use had three outputs rather than two.
-
-## Vendoring Tdarr plugin source
-
-```sh
-pnpm plugins:update                 # latest master
-pnpm plugins:update --ref <sha>     # pin to a commit
-tdarr-test plugins                  # what is vendored right now
-```
-
-This pulls `FlowPlugins/CommunityFlowPlugins`, `FlowPlugins/FlowHelpers` and
-`methods/` from `HaveAGitGat/Tdarr_Plugins` into `vendor/`, mirroring the repo
-layout so plugins' relative requires resolve. The resolved commit is recorded
-in `vendor/VERSION.json`.
-
-Note that Tdarr ships **compiled** plugins from `FlowPlugins/`, not the
-TypeScript in `FlowPluginsTs/`, so that is what gets vendored. Pin `--ref` to
-match your server when a plugin's behaviour matters; the plugin repo carries no
-tags and moves independently of Tdarr releases.
-
-## Command line
-
-```sh
-tdarr-test lint <flow.json...>          # pretty-printed structural lint
-tdarr-test lint --server <url>          # lint every flow on a server
-tdarr-test fuzz <flow.json>             # sweep many file shapes through a flow
-tdarr-test flows --server <url>         # list flows
-tdarr-test pull "My Flow" --server <url> --out flows/my-flow.json
-tdarr-test plugins                      # vendored source status
-```
-
-`lint` groups findings by node and exits 1 on any error.
-`--warnings-as-errors` tightens that for CI.
-
-`fuzz` builds a matrix of containers x video codecs x audio layouts x subtitle
-layouts, runs each through the flow, and groups the results:
-
-```
-  400 variants (sampled from 8568; --full for all)
-  374 clean 94%   23 anomalous 6%   3 halted 1%
-
-HALTED - the flow died on these
-  ✖ 3 x No streams mapped for new file
-      mkv | no-video | none | subs:fre
-
-ANOMALIES - completed, but not as intended
-  ⚠ 23 x silent
-      input had audio, output has none
-```
-
-It flags `silent`, `not-target-container`, `multiple-audio`, `not-replaced`,
-`lost-subtitles` and `video-not-target-codec`. Anomalies are judged against
-`--target-container`, `--target-video` and the language the flow is meant to
-keep, so deliberately stripping foreign tracks is not reported. It is a
-discovery tool: anything it surfaces should become a named test.
-
-The full matrix takes several minutes, so runs are sampled by even stride
-across it (never head-truncated) and the report always says how many were
-skipped.
-
-## Pull flows from a server
-
-Flows live in SQLite on the server, not on disk, so keeping a copy in version
-control is otherwise a manual export.
-
-```ts
-import { TdarrClient, saveFlow } from 'tdarr-flow-test';
-
-const client = new TdarrClient({ url: 'http://192.168.1.42:8266' });
-
-for (const flow of await client.listFlows()) {
-  console.log(`${flow.id}  ${flow.name}  (${flow.nodeCount} nodes)`);
-}
-
-const flow = await client.findFlow('Transcode Pipeline');  // by name or id
-saveFlow(flow, 'flows/transcode-pipeline.json');
-```
-
-`listLibraries()` shows which library runs which flow. Anything not wrapped is
-reachable through `client.raw(path, body)` and `client.crud({ collection, mode })`.
-
-Tdarr's API is not versioned separately from the app and endpoint shapes have
-moved between releases; this is verified against **2.86.01**. Collection names
-are parameters, so a rename is a one-line fix at the call site.
-
-## Extending the registry
-
-Register a model for a plugin the library does not know, or override one:
-
-```ts
-import { builtinRegistry, simulate } from 'tdarr-flow-test';
-
-const registry = builtinRegistry({ classicPluginDir: 'plugins/Local' });
+```js
+const registry = buildRegistry({
+  classicPluginDir: 'plugins/Local',
+  flowPluginDir: 'plugins/FlowPlugins/LocalFlowPlugins',
+})
 
 registry.register('checkHdr', {
   outputs: 2,
   error: false,
   confidence: 'assumed',
-  note: 'true when the video stream carries HDR metadata',
-  run: (ctx) => (ctx.file.streams.some((s) => s.color_transfer === 'smpte2084') ? '1' : '2'),
-});
+  run: (ctx, node) => (isHdr(ctx.file.streams) ? '1' : '2'),
+})
 
-simulate(flow, file, { registry });
+registry.get(name)     //=> NodeModel | undefined
+registry.require(name) //=> NodeModel (throws)
+registry.names()       //=> String[]
+registry.clone()       //=> NodeRegistry
 ```
 
-Local flow plugins found under `flowPluginDir` are auto-registered and executed
-for real, so they never need a model.
+`builtinRegistry(options)` gives models only.
+`registerCommunityPlugins(registry, options)` and
+`registerLocalFlowPlugins(registry, dir, vendorRoot)` add real source.
+
+`MUST_MODEL` lists the nodes that stay modelled because they shell out or move
+files: `inputFile`, `replaceOriginalFile`, `setOriginalFile`, `runMkvPropEdit`,
+`runClassicTranscodePlugin`, `ffmpegCommandExecute`, `checkFileChanged`.
+
+### `TdarrClient(options)`
+
+- __options.url__ {String} e.g. `"http://192.168.1.42:8266"`
+- [__options.apiKey__] {String}
+- [__options.timeoutMs__] {Number} _(default=`10000`)_
+- [__options.fetchImpl__] {Function}
+
+```js
+const client = new TdarrClient({ url: 'http://192.168.1.42:8266' })
+
+await client.ping()             //=> Boolean
+await client.listFlows()        //=> [{ id, name, description, nodeCount, edgeCount }]
+await client.getFlowById(id)    //=> Flow
+await client.getFlowByName(n)   //=> Flow  (throws if ambiguous)
+await client.findFlow(nameOrId) //=> Flow
+await client.listLibraries()    //=> [{ id, name, folder, flowId }]
+await client.crud({ collection, mode })
+await client.raw(path, body)
+
+saveFlow(flow, 'flows/my-flow.json')
+```
+
+Verified against Tdarr 2.86.01. Collection names are parameters.
+
+### `vendorInfo() : VendorInfo | null`
+
+```js
+vendorInfo()     //=> { repo, ref, sha, committedAt, vendoredPaths }
+vendorPaths()    //=> { root, communityFlowPlugins, flowHelpers, methods, available }
+describeVendor() //=> 'HaveAGitGat/Tdarr_Plugins@26c97a52f9 (2026-08-04T07:16:30Z)'
+```
+
+### `verifyHandles(pluginRoot, registry) : VerifyHandlesResult`
+
+Diffs each plugin's declared `details().outputs` against the registry.
+
+```js
+verifyHandles('vendor/FlowPlugins/CommunityFlowPlugins', buildRegistry())
+//=> { checked, missing, mismatches, ok }
+```
+
+## Notes
+
+- Models carry `confidence: 'observed' | 'assumed'`. Lint marks findings that
+  rest on an assumed model with `assumed: true`. Real plugins are always
+  `observed`.
+- `check*` nodes read `inputFileObj.ffProbeData`, not pending command markup. A
+  stream marked `removed` is still visible to a later `checkAudioCodec`.
+- Setting a plugin input to `""` does not mean "unset" — `loadDefaultValues`
+  rewrites it to the plugin's default.
+- `ffProbeData.streams` absent ≠ empty. Several stock plugins throw on the
+  former. Use `probe.unreadableFile()`.
+- `ffmpegCommandExecute` refuses to plan a command where two streams ask for
+  different values of the same unqualified option (`-ac`, `-ar`); ffmpeg would
+  apply the last to all of them.
 
 ## Development
 
 ```sh
-pnpm check      # typecheck + lint + test
+pnpm check   # typecheck + lint + test
 ```
+
+## License
+
+MIT
