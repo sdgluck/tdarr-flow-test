@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
+    // `lib` tracks the Node 24 floor; `target` stays at es2023 because vitest's
+    // bundled esbuild does not recognise es2024 yet. Nothing is emitted anyway.
     "target": "es2023",
-    "lib": ["es2023"],
+    "lib": ["es2024"],
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "types": ["node"],

@@ -17,7 +17,7 @@
     "README.md"
   ],
   "engines": {
-    "node": ">=22.18.0"
+    "node": ">=24.0.0"
   },
   "scripts": {
     "test": "vitest run",
@@ -38,11 +38,11 @@
     "ffmpeg"
   ],
   "devDependencies": {
-    "@types/node": "^22.10.0",
+    "@types/node": "^24.13.3",
     "husky": "^9.1.7",
     "lint-staged": "^17.3.0",
     "oxlint": "^1.62.0",
-    "typescript": "^5.7.0",
+    "typescript": "^6.0.3",
     "vitest": "^2.1.0"
   },
   "bin": {

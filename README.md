@@ -24,7 +24,7 @@ pnpm add -D tdarr-flow-test
 npm install --save-dev tdarr-flow-test
 ```
 
-Requires Node 22.18+. Ships TypeScript source, executed by Node's native type
+Requires Node 24+. Ships TypeScript source, executed by Node's native type
 stripping. No build step.
 
 ## Import
