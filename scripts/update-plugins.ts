@@ -20,40 +20,8 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const REPO = 'HaveAGitGat/Tdarr_Plugins';
-
-/** Paths to extract, relative to the repo root. */
-const WANTED = [
-  'FlowPlugins/CommunityFlowPlugins',
-  'FlowPlugins/FlowHelpers',
-  'methods',
-];
-
-const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
-const vendorDir = join(packageRoot, 'vendor');
-
-function arg(name: string): string | undefined {
-  const index = process.argv.indexOf(`--${name}`);
-  return index === -1 ? undefined : process.argv[index + 1];
-}
-
-async function resolveCommit(ref: string): Promise<{ sha: string; date: string }> {
-  const response = await fetch(`https://api.github.com/repos/${REPO}/commits/${ref}`, {
-    headers: { Accept: 'application/vnd.github+json' },
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!response.ok) {
-    throw new Error(`could not resolve ref "${ref}": GitHub returned ${response.status}`);
-  }
-  const body = (await response.json()) as {
-    sha: string;
-    commit: { committer: { date: string } };
-  };
-  return { sha: body.sha, date: body.commit.committer.date };
-}
+import { join } from 'node:path';
+import { arg, REPO, resolveCommit, vendorDir, WANTED } from './plugin-repo.ts';
 
 async function download(sha: string, into: string): Promise<string> {
   const url = `https://codeload.github.com/${REPO}/tar.gz/${sha}`;

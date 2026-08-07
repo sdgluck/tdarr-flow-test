@@ -19,17 +19,19 @@
   "engines": {
     "node": ">=24.0.0"
   },
+  "packageManager": "pnpm@11.20.0",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint src test",
-    "lint:fix": "oxlint --fix src test",
-    "format": "oxfmt --write src test",
-    "format:check": "oxfmt --check src test",
+    "lint": "oxlint src test scripts",
+    "lint:fix": "oxlint --fix src test scripts",
+    "format": "oxfmt --write src test scripts",
+    "format:check": "oxfmt --check src test scripts",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "prepare": "husky",
-    "plugins:update": "node scripts/update-plugins.ts"
+    "plugins:update": "node scripts/update-plugins.ts",
+    "plugins:check": "node scripts/check-plugins.ts"
   },
   "keywords": [
     "tdarr",

@@ -38,6 +38,7 @@ import { Flow, lint, simulate, fuzz, probe } from 'tdarr-flow-test'
 ```sh
 pnpm plugins:update              # latest master
 pnpm plugins:update --ref <sha>  # pin to a commit
+pnpm plugins:check               # fail if vendored source is behind upstream
 ```
 
 Pulls `FlowPlugins/CommunityFlowPlugins`, `FlowPlugins/FlowHelpers` and
@@ -45,6 +46,9 @@ Pulls `FlowPlugins/CommunityFlowPlugins`, `FlowPlugins/FlowHelpers` and
 written to `vendor/VERSION.json`.
 
 Without it, stock nodes fall back to hand-written models.
+
+The upstream repo is versioned independently and carries no tags, so a daily CI
+job runs `plugins:check` and fails when the snapshot goes stale.
 
 ## CLI
 
