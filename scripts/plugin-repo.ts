@@ -15,6 +15,8 @@ export const WANTED = [
   'FlowPlugins/CommunityFlowPlugins',
   'FlowPlugins/FlowHelpers',
   'methods',
+  // Upstream is GPL-3.0, which requires its licence to travel with the copy.
+  'LICENSE',
 ];
 
 export const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
