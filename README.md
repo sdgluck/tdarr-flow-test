@@ -16,23 +16,18 @@
 
 ## Install
 
-Not on npm yet, and it can't be installed into `node_modules`: the package ships
-TypeScript source, and Node refuses to strip types under `node_modules`. Use it
-from a clone:
+Not published to npm yet, so install from GitHub:
 
 ```sh
-git clone https://github.com/sdgluck/tdarr-flow-test.git
-cd tdarr-flow-test
-pnpm install
-```
-
-Then link it into your project:
-
-```sh
-pnpm add -D link:../tdarr-flow-test
+pnpm add -D github:sdgluck/tdarr-flow-test
 ```
 
 Requires Node 24+. No build step.
+
+Import it from your [Vitest](https://vitest.dev) tests, or run it on Node with
+[tsx](https://github.com/privatenumber/tsx). Plain `node` cannot import it from
+a dependency: Node refuses to strip types from anything
+under `node_modules`, and fails with `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`.
 
 ## Import
 
@@ -66,6 +61,12 @@ tdarr-test fuzz <flow.json>
 tdarr-test flows --server <url>
 tdarr-test pull <name|id> --server <url> --out <file>
 tdarr-test plugins
+```
+
+When installed as a dependency, run `tdarr-test` through tsx:
+
+```sh
+pnpm exec tsx node_modules/tdarr-flow-test/src/cli.ts plugins
 ```
 
 - __--classic-plugins__ {String} Directory of `Tdarr_Plugin_*.js`
@@ -316,7 +317,8 @@ verifyHandles('vendor/FlowPlugins/CommunityFlowPlugins', buildRegistry())
 ## Development
 
 ```sh
-pnpm check   # typecheck + lint + test
+pnpm check          # typecheck + lint + test
+pnpm hooks:install  # enable the pre-commit hook
 ```
 
 ## License

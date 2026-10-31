@@ -33,7 +33,7 @@
     "lint": "oxlint src test scripts",
     "lint:fix": "oxlint --fix src test scripts",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
-    "prepare": "husky",
+    "hooks:install": "husky",
     "plugins:update": "node scripts/update-plugins.ts",
     "plugins:check": "node scripts/check-plugins.ts"
   },
