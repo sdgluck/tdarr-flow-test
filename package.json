@@ -4,6 +4,12 @@
   "description": "A typed test harness for Tdarr flows: graph linting, plugin unit testing, and flow simulation.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sdgluck/tdarr-flow-test.git"
+  },
+  "homepage": "https://github.com/sdgluck/tdarr-flow-test#readme",
+  "bugs": "https://github.com/sdgluck/tdarr-flow-test/issues",
   "exports": {
     ".": "./src/index.ts",
     "./probe": "./src/probe.ts",
@@ -26,8 +32,6 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src test scripts",
     "lint:fix": "oxlint --fix src test scripts",
-    "format": "oxfmt --write src test scripts",
-    "format:check": "oxfmt --check src test scripts",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "prepare": "husky",
     "plugins:update": "node scripts/update-plugins.ts",
@@ -45,7 +49,7 @@
     "lint-staged": "^17.3.0",
     "oxlint": "^1.62.0",
     "typescript": "^6.0.3",
-    "vitest": "^2.1.0"
+    "vitest": "^5.0.5"
   },
   "bin": {
     "tdarr-test": "./src/cli.ts"
