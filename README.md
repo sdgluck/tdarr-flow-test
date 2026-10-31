@@ -16,16 +16,23 @@
 
 ## Install
 
-```sh
-pnpm add -D tdarr-flow-test
-```
+Not on npm yet, and it can't be installed into `node_modules`: the package ships
+TypeScript source, and Node refuses to strip types under `node_modules`. Use it
+from a clone:
 
 ```sh
-npm install --save-dev tdarr-flow-test
+git clone https://github.com/sdgluck/tdarr-flow-test.git
+cd tdarr-flow-test
+pnpm install
 ```
 
-Requires Node 24+. Ships TypeScript source, executed by Node's native type
-stripping. No build step.
+Then link it into your project:
+
+```sh
+pnpm add -D link:../tdarr-flow-test
+```
+
+Requires Node 24+. No build step.
 
 ## Import
 
@@ -41,8 +48,8 @@ pnpm plugins:update --ref <sha>  # pin to a commit
 pnpm plugins:check               # fail if vendored source is behind upstream
 ```
 
-Pulls `FlowPlugins/CommunityFlowPlugins`, `FlowPlugins/FlowHelpers` and
-`methods/` from `HaveAGitGat/Tdarr_Plugins` into `vendor/`. Resolved commit is
+Pulls `FlowPlugins/CommunityFlowPlugins`, `FlowPlugins/FlowHelpers`, `methods/`
+and `LICENSE` from `HaveAGitGat/Tdarr_Plugins` into `vendor/`. Resolved commit is
 written to `vendor/VERSION.json`.
 
 Without it, stock nodes fall back to hand-written models.
@@ -279,7 +286,7 @@ Verified against Tdarr 2.86.01. Collection names are parameters.
 ```js
 vendorInfo()     //=> { repo, ref, sha, committedAt, vendoredPaths }
 vendorPaths()    //=> { root, communityFlowPlugins, flowHelpers, methods, available }
-describeVendor() //=> 'HaveAGitGat/Tdarr_Plugins@26c97a52f9 (2026-08-04T07:16:30Z)'
+describeVendor() //=> 'HaveAGitGat/Tdarr_Plugins@64b2db671c (2026-10-27T17:24:30Z)'
 ```
 
 ### `verifyHandles(pluginRoot, registry) : VerifyHandlesResult`
@@ -314,4 +321,8 @@ pnpm check   # typecheck + lint + test
 
 ## License
 
-MIT
+GPL-3.0-only. See [LICENSE](LICENSE).
+
+`vendor/` is a copy of [Tdarr_Plugins](https://github.com/HaveAGitGat/Tdarr_Plugins),
+also GPL-3.0, with its licence in `vendor/LICENSE`. The third-party modules in
+`vendor/methods/node_modules` keep their own licences.

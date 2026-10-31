@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "A typed test harness for Tdarr flows: graph linting, plugin unit testing, and flow simulation.",
   "type": "module",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/sdgluck/tdarr-flow-test.git"
